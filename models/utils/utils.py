@@ -1,12 +1,14 @@
+import numpy as np
+
+
 #Voxelize the pointcloud
 def voxel_grid(data, res=(32.0,32.0,32.0), limits=(25,25,25)):
     
-    voxel_grid = np.zeros(shape=(X_RES, Y_RES, Z_RES))
-
     X_RES = res[0]
     Y_RES = res[1]
     Z_RES = res[2]
     limit = limits[0]
+    voxel_grid = np.zeros(shape=(X_RES, Y_RES, Z_RES))
 
     for p in data:
 
