@@ -202,18 +202,13 @@ with tf.Session() as sess:
             batch_x, batch_y, class_names = get_batch(BATCH_SIZE,0)
             feed_dict = {
                 discriminator['x']: batch_x.astype(np.float32),
-                discriminator['y']: batch_y.astype(np.float32)
-            }
-            _, loss, accuracy= sess.run([discriminator['train_step'], discriminator['loss'], discriminator['accuracy']], feed_dict=feed_dict) 
-            
-
-
-
-            feed_dict_generator = {
+                discriminator['y']: batch_y.astype(np.float32),
                 generator['x']: normal(size=BATCH_SIZE*64).reshape((BATCH_SIZE, 64))
             }
+            #_, loss, accuracy= sess.run([discriminator['train_step'], discriminator['loss'], discriminator['accuracy']], feed_dict=feed_dict) 
+            
 
-            _, g_loss = sess.run([generator['train_step'], generator['loss']], feed_dict=feed_dict_generator)
+            _, loss, accuracy, _, g_loss = sess.run([discriminator['train_step'], discriminator['loss'], discriminator['accuracy'], generator['train_step'], generator['loss']], feed_dict=feed_dict)
 
             if(batch%5==0):
                 
