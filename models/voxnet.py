@@ -123,10 +123,10 @@ maxpool2 = pool3d(conv2,3,2)
 print("Pool2: ", maxpool2.get_shape())
 
 conv3 = conv3d(maxpool2, 3,3,2)
-print("Conv1: ", conv3.get_shape())
+print("Conv3: ", conv3.get_shape())
 
 maxpool3 = pool3d(x,3,2)
-print("Pool1: ", maxpool3.get_shape())
+print("Pool3: ", maxpool3.get_shape())
 
 flat = flatten(maxpool3)
 print("Flatten layer: ", flat.get_shape())
@@ -163,7 +163,7 @@ accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.round(output), y), tf.float32))
 # Here comes the model training
 
 BATCH_SIZE = 40
-EPOCHS = 2000
+EPOCHS = 200
 
 VALIDATION_PERCENT = 0.2
 
@@ -177,6 +177,9 @@ with tf.Session() as sess:
 
     for i in range(EPOCHS):
 
+
+        iter_dropout = 1 - float(i*2)/float(EPOCHS)
+
         training_size = object_csvs.size - validation_size
         training_files = object_csvs[0:training_size]
         validation_files = object_csvs[training_size:-1]
@@ -186,16 +189,16 @@ with tf.Session() as sess:
 
         for batch in range(training_files.size//BATCH_SIZE):
 
-            batch_x, batch_y, class_names = get_batch(training_files, BATCH_SIZE,0)
+            batch_x, batch_y, class_names = get_batch(training_files, BATCH_SIZE,batch*BATCH_SIZE)
             feed_dict = {
                 x: batch_x.astype(np.float32),
                 y: batch_y.astype(np.float32),
-                keep_prob: 0.5
+                keep_prob: iter_dropout
             }
             _, r_loss, r_accuracy= sess.run([train_step, loss, accuracy], feed_dict=feed_dict) 
             if(batch%5==0):
                 print("Number of classes: ", np.unique(class_names))
-                print("Batch step %d,  loss: %.2f, accuracy: %.2f" % (batch, r_loss, r_accuracy))
+                print("Batch step %d,  loss: %.2f, accuracy: %.2f, dropout: %.2f" % (batch, r_loss, r_accuracy, iter_dropout))
             
 
         x_valid, y_valid, class_names = get_batch(validation_files)    
