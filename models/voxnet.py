@@ -15,7 +15,7 @@ from sklearn.preprocessing import LabelBinarizer, OneHotEncoder
 
 #Parameters
 
-RES = (32,32,32)
+RES = (64,64,64)
 
 #Helper functions (layer creation)
 
@@ -47,9 +47,12 @@ def fully_connected(x, size, activation=tf.nn.relu):
         return activation(b + tf.matmul(x, weights))
 
 
+DATASET = "/fzi/ids/vlasteli/datasets/sidney/objects/"
+
+
 #Helper functions batch reading
 
-object_csvs = np.array(list(filter(lambda x: ".csv" in x, os.listdir("../dataset/objects"))))
+object_csvs = np.array(list(filter(lambda x: ".csv" in x, os.listdir(DATASET))))
 #Shuffleing the csvs
 np.random.shuffle(object_csvs)
 
@@ -57,16 +60,22 @@ np.random.shuffle(object_csvs)
 label_names = np.array(list(map(lambda x: x.split(".")[0], object_csvs)))
 labels = label_names.reshape((-1,1))
 
+print("Labels: ", labels)
+
+
 le = LabelBinarizer(sparse_output=False)
 
 labels = le.fit_transform(labels).reshape(-1,26)
 
-def get_batch(size=3, ind=0):
+def get_batch(dataset,size=None, ind=0):
     
+    if(size == None):
+        size = dataset.size
+
     mini_batch_x = []
     mini_batch_y = []
     for i in range(size):
-        obj = voxel_grid(np.genfromtxt("../dataset/objects/"+object_csvs[ind+i], delimiter=",")[:,3:6], res=RES)
+        obj = voxel_grid(np.genfromtxt(DATASET+training_files[ind+i], delimiter=",")[:,3:6], res=RES)
         mini_batch_x.append(obj[:,:,:,None])
         #mini_batch_x[i].append(object_csvs[ind+i].split(".")[0])
         #write code for labels
@@ -113,13 +122,23 @@ print("Conv2: ", conv2.get_shape())
 maxpool2 = pool3d(conv2,3,2)
 print("Pool2: ", maxpool2.get_shape())
 
+conv3 = conv3d(maxpool2, 3,3,2)
+print("Conv1: ", conv3.get_shape())
 
+maxpool3 = pool3d(x,3,2)
+print("Pool1: ", maxpool3.get_shape())
 
-
-flat = flatten(maxpool2)
-
+flat = flatten(maxpool3)
 print("Flatten layer: ", flat.get_shape())
-output = fully_connected(flat, 26)
+
+
+fc1 = fully_connected(flat, 32)
+
+#Dropout layer
+keep_prob = tf.placeholder(tf.float32)
+fc1_dropout = tf.nn.dropout(fc1, keep_prob)
+
+output = fully_connected(fc1_dropout, 26)
 
 print("Output shape: ", output.get_shape())
 
@@ -143,8 +162,10 @@ accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.round(output), y), tf.float32))
 # 
 # Here comes the model training
 
-BATCH_SIZE = 20
-EPOCHS = 30
+BATCH_SIZE = 40
+EPOCHS = 2000
+
+VALIDATION_PERCENT = 0.2
 
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
@@ -152,23 +173,43 @@ with tf.Session() as sess:
     def l():
         print(80*"#")
 
-    for i in range(EPOCHS):
-        for batch in range(object_csvs.size//BATCH_SIZE):
+    validation_size = round(object_csvs.size * VALIDATION_PERCENT)
 
-            batch_x, batch_y, class_names = get_batch(BATCH_SIZE,0)
+    for i in range(EPOCHS):
+
+        training_size = object_csvs.size - validation_size
+        training_files = object_csvs[0:training_size]
+        validation_files = object_csvs[training_size:-1]
+
+
+        print("Validation size: ", validation_files.size)
+
+        for batch in range(training_files.size//BATCH_SIZE):
+
+            batch_x, batch_y, class_names = get_batch(training_files, BATCH_SIZE,0)
             feed_dict = {
                 x: batch_x.astype(np.float32),
-                y: batch_y.astype(np.float32)
+                y: batch_y.astype(np.float32),
+                keep_prob: 0.5
             }
             _, r_loss, r_accuracy= sess.run([train_step, loss, accuracy], feed_dict=feed_dict) 
             if(batch%5==0):
-                l()
                 print("Number of classes: ", np.unique(class_names))
                 print("Batch step %d,  loss: %.2f, accuracy: %.2f" % (batch, r_loss, r_accuracy))
-                l()
+            
 
-        print("Epoch %d loss: " %(i), sess.run([loss], feed_dict=feed_dict))
+        x_valid, y_valid, class_names = get_batch(validation_files)    
+        #Turn off dropout for validation
+        feed_dict = {
+            x: x_valid,
+            y: y_valid,
+            keep_prob: 1
+        }
+
+        r_loss, r_acc = sess.run([loss, accuracy], feed_dict=feed_dict)
+        l()
+        print("Epoch %d loss: %.2f accuracy: %.2f" %(i, r_loss, r_acc))
+        l()    
         
-    
     
 
