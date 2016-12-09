@@ -1,0 +1,6 @@
+<launch>
+  <node name="rviz" pkg="rviz" type="rviz" args="-foo arg2" />
+  <node name="static_transform_publisher" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 1 map 10" />
+  <!-- pass args to the listener node -->
+  <!-- a respawn-able listener node -->
+</launch>
