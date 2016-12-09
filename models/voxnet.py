@@ -15,7 +15,7 @@ from sklearn.preprocessing import LabelBinarizer, OneHotEncoder
 
 #Parameters
 
-RES = (64,64,64)
+RES = (128,128,128)
 
 #Helper functions (layer creation)
 
@@ -165,7 +165,7 @@ accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.round(output), y), tf.float32))
 BATCH_SIZE = 40
 EPOCHS = 200
 
-VALIDATION_PERCENT = 0.2
+VALIDATION_PERCENT = 0.1
 
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
@@ -197,7 +197,7 @@ with tf.Session() as sess:
             }
             _, r_loss, r_accuracy= sess.run([train_step, loss, accuracy], feed_dict=feed_dict) 
             if(batch%5==0):
-                print("Number of classes: ", np.unique(class_names))
+                print("Number of classes: ", np.unique(class_names).size)
                 print("Batch step %d,  loss: %.2f, accuracy: %.2f, dropout: %.2f" % (batch, r_loss, r_accuracy, iter_dropout))
             
 
