@@ -8,7 +8,7 @@ import numpy as np
 from utils.utils import voxel_grid, tf_confusion_metrics
 import os
 from sklearn.preprocessing import LabelBinarizer, OneHotEncoder
-
+import pickle
 
 
 # In[2]:
@@ -22,7 +22,7 @@ RES = (64,64,64)
 """
     Default stride size is filterSize, which means no overlapping.
 """
-def conv3d(x, numFilters, filterSize, stride=False, padding='VALID'):
+def conv3d(x, numFilters, filterSize, stride=False, padding='SAME'):
     if(not stride):
         stride = filterSize
     inChannels = x.get_shape()[-1].value
@@ -31,12 +31,22 @@ def conv3d(x, numFilters, filterSize, stride=False, padding='VALID'):
         filter=tf.Variable(tf.truncated_normal(shape=[3,3,3,inChannels,numFilters], dtype=tf.float32))
         return tf.nn.conv3d(input=x, filter=filter,  strides=[1,stride,stride,stride,1], padding=padding)
 
+def conv3d_transpose(x, numFilters, filterSize, stride=False, padding='SAME')
+    if(not stride):
+        stride = filterSize
+    inChannels = x.get_shape()[-1].value
+    with tf.name_scope("deconv"):
+        #The filter weights must be of the form (width, height, depth, channels, outputChannels[numberOfFilters])
+        filter=tf.Variable(tf.truncated_normal(shape=[3,3,3,inChannels,numFilters], dtype=tf.float32))
+        return tf.nn.conv3d_transpose(input=x, filter=filter,  strides=[1,stride,stride,stride,1], padding=padding)
+
+
 
 def flatten(x):
     return tf.reshape(x, [-1, np.prod(x.get_shape().as_list()[1:])])
 
 
-def pool3d(x, filterSize=3, stride=1,padding='VALID'):
+def pool3d(x, filterSize=3, stride=1,padding='SAME'):
     return tf.nn.max_pool3d(x, [1, filterSize, filterSize, filterSize, 1], [1,stride,stride,stride,1], padding, name="maxpool")
 
 
@@ -110,16 +120,16 @@ batch_size = tf.shape(x)[0]
 print("Input shape: ", x.get_shape())
 print("Labels shape: ", y.get_shape())
 
-conv1 = conv3d(x, 3,3,2)
+conv1 = conv3d(x, 3,28,stride=2)
 print("Conv1: ", conv1.get_shape())
 
-maxpool1 = pool3d(x,3,2)
+maxpool1 = pool3d(x,2,stride=2)
 print("Pool1: ", maxpool1.get_shape())
 
-conv2 = conv3d(maxpool1, 3,3,2)
+conv2 = conv3d(maxpool1, 3,28,stride=2)
 print("Conv2: ", conv2.get_shape())
 
-maxpool2 = pool3d(conv2,3,2)
+maxpool2 = pool3d(conv2,2,stride=22)
 print("Pool2: ", maxpool2.get_shape())
 
 
@@ -160,7 +170,7 @@ accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.round(output), flatten(x)), tf.flo
 # 
 # Here comes the model training
 
-BATCH_SIZE = 20
+BATCH_SIZE = 30
 EPOCHS = 1000
 
 VALIDATION_PERCENT = 0.1
@@ -210,7 +220,7 @@ with tf.Session() as sess:
         }
 
 
-        r_loss, r_acc = sess.run([loss, accuracy], feed_dict=feed_dict)
+        r_loss, r_acc, r_predictions = sess.run([loss, accuracy, output], feed_dict=feed_dict)
         l()
         print("Epoch %d loss: %.2f accuracy: %.2f" %(i, r_loss, r_acc))
         l()    
