@@ -6,6 +6,9 @@ __pycache__/
 dataset
 build
 
+*nfs*
+.idea
+
 # C extensions
 *.so
 
