@@ -16,11 +16,11 @@ def voxel_grid(data, res=(32.0,32.0,32.0), limits=(25,25,25)):
     for p in data:
 
         x,y,z = p[0],p[1],p[2]
-        if abs(x) > limit:
+        if abs(x) > limits[0]:
             continue
-        elif abs(y) > limit:
+        elif abs(y) > limits[1]:
             continue
-        elif abs(z) > limit:
+        elif abs(z) > limits[2]:
             continue
 
 
@@ -28,7 +28,7 @@ def voxel_grid(data, res=(32.0,32.0,32.0), limits=(25,25,25)):
 
         grid_x = int(np.ceil(((x) / (2*limits[0]))*X_RES))
         grid_y = int(np.ceil(((y) / (2*limits[1]))*Y_RES))
-        grid_z = int(np.ceil(((z)) / (2*limits[2])*Z_RES))
+        grid_z = int(np.ceil(((z)/ (2*limits[2])*Z_RES)))
 
         voxel_grid[grid_x][grid_y][grid_z]+=1.0
 

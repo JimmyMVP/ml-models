@@ -7,11 +7,10 @@ import numpy as np
 
 
 ENV = os.environ
-DATASET =  ENV["DATASETS"] + "sidney/objects/"
 SUMMARY_DIR = ENV["SUMMARY_DIR"]
 
 
-topic = 'visualization_marker_array'
+topic = 'output_visualization'
 publisher = rospy.Publisher(topic, MarkerArray)
 
 rospy.init_node('register')
@@ -27,14 +26,14 @@ rate = rospy.Rate(0.5) # 10hz
 
 #Load the data 
 
-grids = np.load(open(SUMMARY_DIR + "inputs/sidney", "rb"))
+grids = np.load(open(SUMMARY_DIR + "outputs/sidney", "rb"))
 
 
 while not rospy.is_shutdown():
     
     for grid in grids:
         for index in np.ndindex(grid.shape):
-            if(grid[index] == 0):
+            if(grid[index] <= 0.3):
                 continue
             # ... here I get the data I want to plot into a vector called trans
             marker = Marker()
@@ -46,7 +45,7 @@ while not rospy.is_shutdown():
             marker.scale.x = 0.1
             marker.scale.y = 0.1
             marker.scale.z = 0.1
-            marker.color.a = 1.0
+            marker.color.a = 1
             marker.pose.orientation.w = 1.0
             trans[0] = index[0] * 0.2 - grid.shape[0]//2 * 0.2
             trans[1]=  index[1] * 0.2 - grid.shape[1]//2 * 0.2
@@ -62,9 +61,8 @@ while not rospy.is_shutdown():
             marker.lifetime.secs = 2
             marker.lifetime.nsecs = 2
             markerArray.markers.append(marker)
-            # We add the new marker to the MarkerArray, removing the oldest marker from it when necessary
-            # Publish the MarkerArray
-        print "Created grid"
+        
+        print "Created output grid"
 
         publisher.publish(markerArray)
         markerArray = MarkerArray()

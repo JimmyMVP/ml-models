@@ -1,0 +1,2 @@
+model_checkpoint_path: "voxnet_checkpoints"
+all_model_checkpoint_paths: "voxnet_checkpoints"
