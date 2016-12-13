@@ -117,6 +117,13 @@ if not os.path.exists(SUMMARY_DIR + "inputs"):
 if not os.path.exists(SUMMARY_DIR + "outputs"):
     os.makedirs(SUMMARY_DIR + "outputs")
 
+
+if not os.path.exists(SUMMARY_DIR + "log"):
+    os.makedirs(SUMMARY_DIR + "log")
+
+if not os.path.exists(SUMMARY_DIR + "models"):
+    os.makedirs(SUMMARY_DIR + "models")
+
 """
 Testing the input
 """
@@ -142,21 +149,21 @@ batch_size = tf.shape(x)[0]
 print("Input shape: ", x.get_shape())
 print("Labels shape: ", y.get_shape())
 
-conv1 = conv3d(x, 3, 28, stride=2, activation=tf.nn.relu)
+conv1 = conv3d(x, 1, 1, stride=1, activation=tf.nn.relu)
 print("Conv1: ", conv1.get_shape())
 
 maxpool1 = pool3d(conv1, 2, stride=2)
 print("Pool1: ", maxpool1.get_shape())
 
-conv2 = conv3d(maxpool1, 3, 28, stride=2, activation=tf.nn.relu)
+conv2 = conv3d(maxpool1, 1, 1, stride=1, activation=tf.nn.relu)
 print("Conv2: ", conv2.get_shape())
 
-maxpool2 = pool3d(conv2, 2, stride=22)
+maxpool2 = pool3d(conv2, 2, stride=2)
 print("Pool2: ", maxpool2.get_shape())
 
 # deconv1 = conv3d_transpose(conv2, 3, 28, stride=2)
 
-flat = flatten(maxpool2)
+flat = flatten(conv2)
 print("Flatten layer: ", flat.get_shape())
 
 fc1 = fully_connected(flat, np.sum([RES[0], RES[1]]))
@@ -181,13 +188,18 @@ recall = tf.reduce_sum(tf.boolean_mask(equals, mask)) / tf.reduce_sum(tf.minimum
 # Loss
 vars = tf.trainable_variables()
 lossL2 = tf.add_n([tf.nn.l2_loss(v) for v in vars]) * 0.2
+
 loss = tf.reduce_mean(
     tf.nn.weighted_cross_entropy_with_logits(output_logits, flatten(x), flatten(x) * np.prod(RES) + 1)) + lossL2
+tf.summary.scalar(name="Loss", tensor=loss)
 print("Loss shape: ", loss.get_shape())
 
 # Training
 optimizer = tf.train.AdamOptimizer()
 train_step = optimizer.minimize(loss)
+
+merge = tf.summary.merge_all()
+
 
 # # Model Training
 # 
@@ -199,11 +211,19 @@ EPOCHS = 1000
 VALIDATION_PERCENT = 0.01
 
 with tf.Session() as sess:
-    sess.run(tf.global_variables_initializer())
-
 
     def l():
         print(80 * "#")
+
+    #Create summary writer
+    summaryWriter = tf.train.SummaryWriter(graph=sess.graph, logdir=SUMMARY_DIR+"log")
+    #Create saver for model checkpoints
+    saver = tf.train.Saver()
+    
+    l()
+    print("Restoring model from checkpoint...")
+    l()
+    saver.restore(sess, SUMMARY_DIR + "models/model.chkp")
 
 
     validation_size = round(object_csvs.size * VALIDATION_PERCENT)
@@ -228,7 +248,7 @@ with tf.Session() as sess:
                 y: batch_y.astype(np.float32),
                 keep_prob: iter_dropout
             }
-            _, r_loss, r_precision, r_output, r_recall = sess.run([train_step, loss, precision, output, recall],
+            _, r_loss, r_precision, r_output, r_recall, summary = sess.run([train_step, loss, precision, output, recall, merge],
                                                                   feed_dict=feed_dict)
             if (batch % 5 == 0):
                 print("Number of classes: ", np.unique(class_names).size)
@@ -236,6 +256,8 @@ with tf.Session() as sess:
                 batch, r_loss, r_precision, r_recall, iter_dropout))
                 r_output = r_output.reshape((-1, RES[0], RES[1], RES[2]))
                 np.save(learned_output, r_output)
+                print("Adding summary")
+                summaryWriter.add_summary(summary, global_step=i)
 
         x_valid, y_valid, class_names = get_batch(validation_files)
         # Turn off dropout for validation
@@ -245,10 +267,13 @@ with tf.Session() as sess:
             keep_prob: 1
         }
 
-        r_loss, r_precision, r_predictions, r_equals, r_recall = sess.run([loss, precision, output, equals, recall],
-                                                                          feed_dict=feed_dict)
+        r_loss, r_precision, r_predictions, r_equals, r_recall, summary = sess.run([loss, precision, output, equals, recall, merge],
+                                                                         feed_dict=feed_dict)
+
         l()
         print("Number of non zero in x: ", x_valid[[x_valid != 0]].size)
         print("Number of non zero in y: ", r_predictions[[r_predictions > 0.5]].size)
         print("Epoch %d loss: %.2f precision: %.5f recall: %.5f" % (i, r_loss, r_precision, r_recall))
+        saver.save(sess, SUMMARY_DIR + "models/model.chkp")
+        print("!!! Model checkpoint !!!")
         l()
