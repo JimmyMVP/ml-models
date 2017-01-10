@@ -9,14 +9,23 @@ class TransformNet:
 
     def __init__(self, input, shape=(3,3)):
 
-        if(len(input.get_shape()) > 2):
 
-            reshaped = tf.reshape(input, shape=(-1, shape[0]))
-            self.transformation = tf.matmul(reshaped, tf.ones(shape=shape))
-            print(self.transformation.get_shape())
-            self.transformation = tf.reshape(self.transformation, shape=(-1, 1024, shape[0]))
-        else:
-            self.transformation = tf.matmul(input, tf.ones(shape=shape))
+        with slim.arg_scope([slim.fully_connected], weights_initializer=clayers.xavier_initializer(), \
+                            weights_regularizer=slim.l2_regularizer(0.0005)):
+            net = slim.repeat(input, 2, slim.fully_connected, 64)
+            net = slim.stack(net, slim.fully_connected, [64, 128, 1024])
+            net = tf.reduce_max(net, axis=1)
+            net = slim.stack(net, slim.fully_connected, [512, 256, shape[0]*shape[1]])
+            net = tf.reshape(net, (-1, shape[0], shape[0]))
+
+            if(len(input.get_shape()) > 2):
+
+                reshaped = tf.reshape(input, shape=(-1, shape[0]))
+                self.transformation = tf.matmul(reshaped, net)
+                print(self.transformation.get_shape())
+                self.transformation = tf.reshape(self.transformation, shape=(-1, 1024, shape[0]))
+            else:
+                self.transformation = tf.matmul(input, net)
 
 
 
@@ -33,7 +42,7 @@ class PointNet:
 
     def createComputationGraph(self):
 
-        self.inputs = tf.placeholder(tf.float32, shape=(None, self.n, 3))
+        self.inputs = tf.placeholder(tf.float32, shape=(None, self.n, 3), name="inputs")
 
         with slim.arg_scope([slim.fully_connected], weights_initializer=clayers.xavier_initializer(), \
                             weights_regularizer=slim.l2_regularizer(0.0005)):
@@ -48,20 +57,29 @@ class PointNet:
 
             net = slim.stack(net, slim.fully_connected, [512,256, self.numclasses])
 
-            self.labels = tf.placeholder(tf.float32, shape=(None, self.numclasses))
+            self.labels = tf.placeholder(tf.int32, shape=(None), name="labels")
 
             self.outputs = net
-            self.loss = slim.losses.softmax_cross_entropy(self.outputs, self.labels)
+
+            #Define loss function
+            slim.losses.sparse_softmax_cross_entropy(self.outputs, self.labels)
+            self.loss = slim.losses.get_total_loss(add_regularization_losses=True)
 
         # Classification
-        self.classify = tf.argmax(self.inputs, axis=1, name="classification")
+        self.predictions = tf.argmax(self.outputs, axis=1, name="classification")
 
-        return
+        #Define metrics
+        self.metrics_op_map, self.updates = slim.metrics.aggregate_metric_map({
+            "eval/recall": slim.metrics.streaming_recall(self.predictions, self.labels),
+            "eval/accuracy": slim.metrics.streaming_accuracy(self.predictions, self.labels),
+            "eval/precision": slim.metrics.streaming_precision(self.predictions, self.labels)
+        })
+
 
     def train(self):
 
 
-        optimizer = tf.train.AdamOptimizer(0.001, 0.9)
+        optimizer = tf.train.AdamOptimizer(0.001)
 
         optimize = slim.learning.create_train_op(total_loss=slim.losses.get_total_loss(add_regularization_losses=True), optimizer=optimizer)
 

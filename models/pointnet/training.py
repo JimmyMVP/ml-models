@@ -2,6 +2,7 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 import numpy as np
 import os
+import pdb
 
 from pointnet.network import PointNet
 
@@ -22,10 +23,12 @@ def read_off(file_name):
     with open(file_name, "r") as f:
         lines = f.readlines()
         for line in lines[2:-1]:
-            points = np.asarray([float(x) for x in line.split()])
+            points = [float(x) for x in line.split()]
+            if(len(points) > 3):
+                points = points[1:]
             cloud.append(points)
 
-    return np.asarray(cloud)
+    return np.array(cloud)
 
 
 def load_object(obj):
@@ -51,9 +54,11 @@ def load_data(save=False):
         print("Loaded object")
 
 
-def load_files():
+def load_files(objects=["guitar", "piano"]):
 
     for obj in os.listdir(DATAROOT):
+        if not obj in objects:
+            continue
         train = DATAROOT+obj +"/train/"
         test = DATAROOT+obj +"/test/"
         for f in os.listdir(train):
@@ -69,46 +74,62 @@ test_files = np.asarray(test_files)
 label_mapping = {}
 
 
-def get_batch(batch_size):
-
-# TODO Uniform sampling of the input pointcloud
+def get_batch(batch_size, current):
 
     data = []
     labels = []
     for i in range(batch_size):
-        object = train_files[i].split("/")[-3]
-        cloud = read_off(train_files[i])
-        data.append(cloud)
+        object = train_files[current+i].split("/")[-3]
+        cloud = read_off(train_files[current+i])
+        indices = np.random.choice(np.arange(cloud.shape[0]), size=1024)
+        #pdb.set_trace()
+        data.append(cloud[indices])
         if not object in label_mapping:
             label_mapping[object] = len(label_mapping)
         labels.append(label_mapping[object])
 
-
     return np.array(data), np.array(labels)
 
 
-
-network = PointNet(n=1024, numclasses=40)
+network = PointNet(n=1024, numclasses=2)
+optimise = network.train()
 
 train_op = network.train()
 epochs = 100
 batch_size = 32
 
+
 with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    sess.run(tf.local_variables_initializer())
 
     for epoch in range(epochs):
-        print("Training epoch %d." %(epoch))
-        for batch in range(batch_size):
 
-            data, labels = get_batch(batch_size)
+        np.random.shuffle(train_files)
+
+        print("Training epoch %d." %(epoch))
+        for batch in range(train_files.size // batch_size):
+
+            data, labels = get_batch(batch_size, batch)
+
             feed_dict = {
                 network.inputs: data,
                 network.labels: labels
             }
 
-            loss = sess.run([network.loss, network.optimize], feed_dict=feed_dict)
+            sess.run(list(network.updates.values()), feed_dict=feed_dict)
+            #pdb.set_trace()
 
-            print("Loss: %f" %(loss))
+
+            results = sess.run([network.loss, optimise] + list(network.metrics_op_map.values()), feed_dict=feed_dict)
+            loss = results[0]
+            metric_values = results[2:]
+
+            print("Batch: %d/%d Loss: %f" %(batch, train_files.size // batch_size, loss))
+            for key, value in zip(network.metrics_op_map.keys(), metric_values):
+                print("%s: %f" %(key, value))
+
+
 
 
 
