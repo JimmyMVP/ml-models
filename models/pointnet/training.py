@@ -90,13 +90,12 @@ def get_batch(batch_size, current):
 
     return np.array(data), np.array(labels)
 
-
 network = PointNet(n=1024, numclasses=2)
 optimise = network.train()
 
 train_op = network.train()
 epochs = 100
-batch_size = 32
+batch_size = 4
 
 
 with tf.Session() as sess:
@@ -121,13 +120,13 @@ with tf.Session() as sess:
             #pdb.set_trace()
 
 
-            results = sess.run([network.loss, optimise] + list(network.metrics_op_map.values()), feed_dict=feed_dict)
+            results = sess.run([network.loss, optimise], feed_dict=feed_dict)
             loss = results[0]
-            metric_values = results[2:]
+            #metric_values = results[2:]
 
             print("Batch: %d/%d Loss: %f" %(batch, train_files.size // batch_size, loss))
-            for key, value in zip(network.metrics_op_map.keys(), metric_values):
-                print("%s: %f" %(key, value))
+            #for key, value in zip(network.metrics_op_map.keys(), metric_values):
+            #    print("%s: %f" % (key, value))
 
 
 

@@ -16,12 +16,12 @@ class TransformNet:
             net = slim.stack(net, slim.fully_connected, [64, 128, 1024])
             net = tf.reduce_max(net, axis=1)
             net = slim.stack(net, slim.fully_connected, [512, 256, shape[0]*shape[1]])
-            net = tf.reshape(net, (-1, shape[0], shape[0]))
+            net = tf.reshape(net, (-1, shape[0]))
 
             if(len(input.get_shape()) > 2):
 
                 reshaped = tf.reshape(input, shape=(-1, shape[0]))
-                self.transformation = tf.matmul(reshaped, net)
+                self.transformation = tf.matmul(reshaped, net, transpose_b=True)
                 print(self.transformation.get_shape())
                 self.transformation = tf.reshape(self.transformation, shape=(-1, 1024, shape[0]))
             else:
@@ -61,12 +61,14 @@ class PointNet:
 
             self.outputs = net
 
+            print("Output shape: ",  net.get_shape())
             #Define loss function
             slim.losses.sparse_softmax_cross_entropy(self.outputs, self.labels)
             self.loss = slim.losses.get_total_loss(add_regularization_losses=True)
 
         # Classification
         self.predictions = tf.argmax(self.outputs, axis=1, name="classification")
+        print("Predictions shape: ", self.predictions.get_shape())
 
         #Define metrics
         self.metrics_op_map, self.updates = slim.metrics.aggregate_metric_map({
