@@ -1,11 +1,10 @@
-import tensorflow as tf
-import tensorflow.contrib.slim as slim
-import numpy as np
 import os
-import pdb
+
+import numpy as np
+import tensorflow as tf
 
 from pointnet.network import PointNet
-
+import pdb
 
 DATAROOT = "/data/vlasteli/ModelNet40/"
 DATASET = ""
@@ -82,7 +81,7 @@ def get_batch(batch_size, current):
         object = train_files[current+i].split("/")[-3]
         cloud = read_off(train_files[current+i])
         indices = np.random.choice(np.arange(cloud.shape[0]), size=1024)
-        #pdb.set_trace()
+
         data.append(cloud[indices])
         if not object in label_mapping:
             label_mapping[object] = len(label_mapping)

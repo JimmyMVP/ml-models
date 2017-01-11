@@ -7,7 +7,7 @@ import tensorflow.contrib.layers as clayers
 class TransformNet:
 
 
-    def __init__(self, input, shape=(3,3)):
+    def __init__(self, input, shape=(3,3), cloud_size=1024):
 
 
         with slim.arg_scope([slim.fully_connected], weights_initializer=clayers.xavier_initializer(), \
@@ -16,16 +16,27 @@ class TransformNet:
             net = slim.stack(net, slim.fully_connected, [64, 128, 1024])
             net = tf.reduce_max(net, axis=1)
             net = slim.stack(net, slim.fully_connected, [512, 256, shape[0]*shape[1]])
-            net = tf.reshape(net, (-1, shape[0]))
+
 
             if(len(input.get_shape()) > 2):
 
-                reshaped = tf.reshape(input, shape=(-1, shape[0]))
-                self.transformation = tf.matmul(reshaped, net, transpose_b=True)
-                print(self.transformation.get_shape())
-                self.transformation = tf.reshape(self.transformation, shape=(-1, 1024, shape[0]))
+                # Unpacked transformation matrices
+                unstacked_net = tf.unstack(tf.reshape(net, (4, shape[0], shape[0])), axis=0)
+                unstacked_input = tf.unstack(input, axis=0)
+
+                results = []
+                for transformation_matrix, input in zip(unstacked_net, unstacked_input):
+                    results.append(tf.matmul(input,transformation_matrix))
+
+
+
+                # 4 x 1024 x 3 -> 4096 x 3
+                # 4096 x 12
+                self.transformation = tf.stack(results, axis=0)
             else:
                 self.transformation = tf.matmul(input, net)
+                self.transformation = tf.reshape(self.transformation, shape=(4, cloud_size, shape[0]))
+
 
 
 
@@ -42,14 +53,14 @@ class PointNet:
 
     def createComputationGraph(self):
 
-        self.inputs = tf.placeholder(tf.float32, shape=(None, self.n, 3), name="inputs")
+        self.inputs = tf.placeholder(tf.float32, shape=(4, self.n, 3), name="inputs")
 
         with slim.arg_scope([slim.fully_connected], weights_initializer=clayers.xavier_initializer(), \
                             weights_regularizer=slim.l2_regularizer(0.0005)):
-            net = TransformNet(self.inputs).transformation
+            self.transform_net_1 = net = TransformNet(self.inputs).transformation
 
             net = slim.repeat(net, 2, slim.fully_connected, 64)
-            net = TransformNet(net, shape=(64,64)).transformation
+            self.transform_net_2 = net = TransformNet(net, shape=(64,64)).transformation
 
             net = slim.stack(net, slim.fully_connected, [64,128,1024])
 
@@ -57,7 +68,7 @@ class PointNet:
 
             net = slim.stack(net, slim.fully_connected, [512,256, self.numclasses])
 
-            self.labels = tf.placeholder(tf.int32, shape=(None), name="labels")
+            self.labels = tf.placeholder(tf.int32, shape=(4), name="labels")
 
             self.outputs = net
 
