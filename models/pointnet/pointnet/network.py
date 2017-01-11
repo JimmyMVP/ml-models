@@ -2,12 +2,12 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 import tensorflow.contrib.layers as clayers
 
-
+# TODO Implement weight sharing
 
 class TransformNet:
 
 
-    def __init__(self, input, shape=(3,3), cloud_size=1024):
+    def __init__(self, input, shape=(3,3), cloud_size=1024, batch_size=4):
 
 
         with slim.arg_scope([slim.fully_connected], weights_initializer=clayers.xavier_initializer(), \
@@ -21,7 +21,7 @@ class TransformNet:
             if(len(input.get_shape()) > 2):
 
                 # Unpacked transformation matrices
-                unstacked_net = tf.unstack(tf.reshape(net, (4, shape[0], shape[0])), axis=0)
+                unstacked_net = tf.unstack(tf.reshape(net, (batch_size, shape[0], shape[0])), axis=0)
                 unstacked_input = tf.unstack(input, axis=0)
 
                 results = []
@@ -35,7 +35,7 @@ class TransformNet:
                 self.transformation = tf.stack(results, axis=0)
             else:
                 self.transformation = tf.matmul(input, net)
-                self.transformation = tf.reshape(self.transformation, shape=(4, cloud_size, shape[0]))
+                self.transformation = tf.reshape(self.transformation, shape=(batch_size, cloud_size, shape[0]))
 
 
 
@@ -45,15 +45,16 @@ class TransformNet:
 
 class PointNet:
 
-    def __init__(self, n=1024, numclasses=40):
+    def __init__(self, n=1024, numclasses=40, batch_size=4):
 
         self.n = n
         self.numclasses = numclasses
+        self.batch_size = batch_size
         self.createComputationGraph()
 
     def createComputationGraph(self):
 
-        self.inputs = tf.placeholder(tf.float32, shape=(4, self.n, 3), name="inputs")
+        self.inputs = tf.placeholder(tf.float32, shape=(self.batch_size, self.n, 3), name="inputs")
 
         with slim.arg_scope([slim.fully_connected], weights_initializer=clayers.xavier_initializer(), \
                             weights_regularizer=slim.l2_regularizer(0.0005)):
@@ -68,7 +69,7 @@ class PointNet:
 
             net = slim.stack(net, slim.fully_connected, [512,256, self.numclasses])
 
-            self.labels = tf.placeholder(tf.int32, shape=(4), name="labels")
+            self.labels = tf.placeholder(tf.int32, shape=(self.batch_size), name="labels")
 
             self.outputs = net
 
@@ -76,6 +77,9 @@ class PointNet:
             #Define loss function
             slim.losses.sparse_softmax_cross_entropy(self.outputs, self.labels)
             self.loss = slim.losses.get_total_loss(add_regularization_losses=True)
+
+            tf.summary.scalar("loss", self.loss)
+
 
         # Classification
         self.predictions = tf.argmax(self.outputs, axis=1, name="classification")
@@ -87,6 +91,10 @@ class PointNet:
             "eval/accuracy": slim.metrics.streaming_accuracy(self.predictions, self.labels),
             "eval/precision": slim.metrics.streaming_precision(self.predictions, self.labels)
         })
+
+
+        #Define summary
+        self.summary = tf.merge_all_summaries()
 
 
     def train(self):

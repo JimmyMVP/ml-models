@@ -8,7 +8,10 @@ import pdb
 
 DATAROOT = "/data/vlasteli/ModelNet40/"
 DATASET = ""
-LOGDIR = ""
+LOGDIR = "/data/vlasteli/pointnet_summary/"
+
+SUMMARY_DIR = os.environ["SUMMARY_DIR"] + "shapenet40/summary"
+LOG_DIR = os.environ["SUMMARY_DIR"] + "shapenet40/log"
 
 train_files = []
 test_files = []
@@ -94,12 +97,15 @@ optimise = network.train()
 
 train_op = network.train()
 epochs = 100
-batch_size = 4
+batch_size = 8
 
 
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
     sess.run(tf.local_variables_initializer())
+
+    # Merge all the summaries and write them out to /tmp/mnist_logs (by default)
+    train_writer = tf.train.SummaryWriter(SUMMARY_DIR, sess.graph)
 
     for epoch in range(epochs):
 
@@ -119,13 +125,18 @@ with tf.Session() as sess:
             #pdb.set_trace()
 
 
-            results = sess.run([network.loss, optimise], feed_dict=feed_dict)
+
+            results = sess.run([network.loss, network.summary, optimise] + list(network.metrics_op_map.values()), feed_dict=feed_dict)
             loss = results[0]
-            #metric_values = results[2:]
+            summary = results[1]
+
+            if(batch % 10 == 0):
+                train_writer.add_summary(summary)
+            metric_values = results[3:]
 
             print("Batch: %d/%d Loss: %f" %(batch, train_files.size // batch_size, loss))
-            #for key, value in zip(network.metrics_op_map.keys(), metric_values):
-            #    print("%s: %f" % (key, value))
+            for key, value in zip(network.metrics_op_map.keys(), metric_values):
+                print("%s: %f" % (key, value))
 
 
 
