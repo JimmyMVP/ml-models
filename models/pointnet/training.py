@@ -6,6 +6,7 @@ import tensorflow as tf
 from pointnet.network import PointNet
 import pdb
 
+
 DATAROOT = "/data/vlasteli/ModelNet40/"
 DATASET = ""
 LOGDIR = "/data/vlasteli/pointnet_summary/"
@@ -92,22 +93,27 @@ def get_batch(batch_size, current):
 
     return np.array(data), np.array(labels)
 
+gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
 
 epochs = 600
-batch_size = 8
+batch_size = 32
+learning_rate = 0.001
+learning_rate_decay = 0.5
 
-network = PointNet(n=1024, numclasses=2, batch_size=8)
+
+network = PointNet(n=1024, numclasses=2, batch_size=batch_size)
 optimise = network.train()
 
 train_saver = tf.train.Saver()
 
 save_path=SUMMARY_DIR + "/checkpoint.ckp"
 
-with tf.Session() as sess:
+with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
     sess.run(tf.global_variables_initializer())
     sess.run(tf.local_variables_initializer())
 
     try:
+        #pass
         train_saver.restore(sess, save_path)
     except Exception:
         pass
@@ -119,6 +125,8 @@ with tf.Session() as sess:
     for epoch in range(epochs):
 
         np.random.shuffle(train_files)
+        if(epoch%20 == 0):
+            learning_rate *= learning_rate_decay
 
         print("Training epoch %d." %(epoch))
         for batch in range(train_files.size // batch_size):
@@ -127,7 +135,8 @@ with tf.Session() as sess:
 
             feed_dict = {
                 network.inputs: data,
-                network.labels: labels
+                network.labels: labels,
+                network.learning_rate: learning_rate
             }
 
             sess.run(list(network.updates.values()), feed_dict=feed_dict)
@@ -143,7 +152,7 @@ with tf.Session() as sess:
                 train_writer.add_summary(summary)
             metric_values = results[3:]
 
-            print("Batch: %d/%d Loss: %f" %(batch, train_files.size // batch_size, loss))
+            print(10*"#", "Epoch: %d/%d Batch: %d/%d Loss: %f" %(epoch, epochs,batch, train_files.size // batch_size, loss), 10*"#")
             for key, value in zip(network.metrics_op_map.keys(), metric_values):
                 print("%s: %f" % (key, value))
 

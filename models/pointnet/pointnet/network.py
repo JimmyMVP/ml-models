@@ -3,9 +3,14 @@ import tensorflow.contrib.slim as slim
 import tensorflow.contrib.layers as clayers
 
 # TODO Implement weight sharing
+# TODO Weight Summaries
+# TODO Learning rate decay
+# TODO Regularization loss to make matrix close to orthogonal
+
+
 def batch_norm_fully_connected(input, outputs, scope=None):
     net = slim.fully_connected(input, outputs, scope=scope)
-    return slim.batch_norm(net)
+    return slim.batch_norm(net, decay=0.5)
 
 
 class TransformNet:
@@ -84,7 +89,7 @@ class PointNet:
 
             net = batch_norm_fully_connected(net, 512)
             net = batch_norm_fully_connected(net, 256)
-            net = batch_norm_fully_connected(net, self.numclasses)
+            net = slim.fully_connected(net, self.numclasses)
 
             self.labels = tf.placeholder(tf.int32, shape=(self.batch_size), name="labels")
 
@@ -92,7 +97,7 @@ class PointNet:
 
             print("Output shape: ",  net.get_shape())
             #Define loss function
-            slim.losses.sparse_softmax_cross_entropy(self.outputs, self.labels)
+            slim.losses.add_loss(tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(self.outputs, self.labels)))
             self.loss = slim.losses.get_total_loss(add_regularization_losses=True)
 
             tf.summary.scalar("loss", self.loss)
@@ -117,7 +122,10 @@ class PointNet:
     def train(self):
 
 
-        optimizer = tf.train.AdamOptimizer(0.001)
+        # Learning rate is dynamic
+        self.learning_rate = tf.placeholder(tf.float32, shape=[])
+
+        optimizer = tf.train.AdamOptimizer(self.learning_rate)
 
         optimize = slim.learning.create_train_op(total_loss=slim.losses.get_total_loss(add_regularization_losses=True), optimizer=optimizer)
 
