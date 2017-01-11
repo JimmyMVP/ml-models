@@ -92,12 +92,12 @@ def get_batch(batch_size, current):
 
     return np.array(data), np.array(labels)
 
-network = PointNet(n=1024, numclasses=2)
-optimise = network.train()
 
-train_op = network.train()
-epochs = 100
+epochs = 600
 batch_size = 8
+
+network = PointNet(n=1024, numclasses=2, batch_size=8)
+optimise = network.train()
 
 
 with tf.Session() as sess:

@@ -58,10 +58,10 @@ class PointNet:
 
         with slim.arg_scope([slim.fully_connected], weights_initializer=clayers.xavier_initializer(), \
                             weights_regularizer=slim.l2_regularizer(0.0005)):
-            self.transform_net_1 = net = TransformNet(self.inputs).transformation
+            self.transform_net_1 = net = TransformNet(self.inputs, batch_size=self.batch_size).transformation
 
             net = slim.repeat(net, 2, slim.fully_connected, 64)
-            self.transform_net_2 = net = TransformNet(net, shape=(64,64)).transformation
+            self.transform_net_2 = net = TransformNet(net, shape=(64,64), batch_size=self.batch_size).transformation
 
             net = slim.stack(net, slim.fully_connected, [64,128,1024])
 
