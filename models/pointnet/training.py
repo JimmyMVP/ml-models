@@ -99,10 +99,19 @@ batch_size = 8
 network = PointNet(n=1024, numclasses=2, batch_size=8)
 optimise = network.train()
 
+train_saver = tf.train.Saver()
+
+save_path=SUMMARY_DIR + "/checkpoint.ckp"
 
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
     sess.run(tf.local_variables_initializer())
+
+    try:
+        train_saver.restore(sess, save_path)
+    except Exception:
+        pass
+
 
     # Merge all the summaries and write them out to /tmp/mnist_logs (by default)
     train_writer = tf.train.SummaryWriter(SUMMARY_DIR, sess.graph)
@@ -139,11 +148,9 @@ with tf.Session() as sess:
                 print("%s: %f" % (key, value))
 
 
+        if(epoch % 10 == 0):
+            train_saver.save(save_path=save_path, sess=sess)
 
-
-
-SUMMARY_DIR = os.environ["SUMMARY_DIR"] + "shapenet40/summary"
-LOG_DIR = os.environ["SUMMARY_DIR"] + "shapenet40/log"
 
 
 

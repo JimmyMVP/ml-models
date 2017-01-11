@@ -3,6 +3,10 @@ import tensorflow.contrib.slim as slim
 import tensorflow.contrib.layers as clayers
 
 # TODO Implement weight sharing
+def batch_norm_fully_connected(input, outputs, scope=None):
+    net = slim.fully_connected(input, outputs, scope=scope)
+    return slim.batch_norm(net)
+
 
 class TransformNet:
 
@@ -13,9 +17,15 @@ class TransformNet:
         with slim.arg_scope([slim.fully_connected], weights_initializer=clayers.xavier_initializer(), \
                             weights_regularizer=slim.l2_regularizer(0.0005)):
             net = slim.repeat(input, 2, slim.fully_connected, 64)
-            net = slim.stack(net, slim.fully_connected, [64, 128, 1024])
+
+            net = batch_norm_fully_connected(input, 64)
+            net = batch_norm_fully_connected(net, 64)
+
             net = tf.reduce_max(net, axis=1)
-            net = slim.stack(net, slim.fully_connected, [512, 256, shape[0]*shape[1]])
+
+            net = batch_norm_fully_connected(net, 512)
+            net = batch_norm_fully_connected(net, 256)
+            net = batch_norm_fully_connected(net, shape[0]*shape[1])
 
 
             if(len(input.get_shape()) > 2):
@@ -60,14 +70,21 @@ class PointNet:
                             weights_regularizer=slim.l2_regularizer(0.0005)):
             self.transform_net_1 = net = TransformNet(self.inputs, batch_size=self.batch_size).transformation
 
-            net = slim.repeat(net, 2, slim.fully_connected, 64)
+            net = batch_norm_fully_connected(net, 64)
+            net = batch_norm_fully_connected(net, 64)
+
             self.transform_net_2 = net = TransformNet(net, shape=(64,64), batch_size=self.batch_size).transformation
 
-            net = slim.stack(net, slim.fully_connected, [64,128,1024])
+
+            net = batch_norm_fully_connected(net, 64)
+            net = batch_norm_fully_connected(net, 128)
+            net = batch_norm_fully_connected(net, 1024)
 
             net = tf.reduce_max(net, axis=1)
 
-            net = slim.stack(net, slim.fully_connected, [512,256, self.numclasses])
+            net = batch_norm_fully_connected(net, 512)
+            net = batch_norm_fully_connected(net, 256)
+            net = batch_norm_fully_connected(net, self.numclasses)
 
             self.labels = tf.placeholder(tf.int32, shape=(self.batch_size), name="labels")
 
