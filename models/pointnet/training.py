@@ -3,9 +3,12 @@ import os
 import numpy as np
 import tensorflow as tf
 
+
 from pointnet.network import PointNet
 import pdb
 
+
+# TODO Data normalization
 
 DATAROOT = "/data/vlasteli/ModelNet40/"
 DATASET = ""
@@ -91,7 +94,7 @@ def get_batch(batch_size, current):
             label_mapping[object] = len(label_mapping)
         labels.append(label_mapping[object])
 
-    return np.array(data), np.array(labels)
+    return np.array(data)/1000, np.array(labels)
 
 gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
 
@@ -113,14 +116,14 @@ with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
     sess.run(tf.local_variables_initializer())
 
     try:
-        #pass
-        train_saver.restore(sess, save_path)
+        pass
+        #train_saver.restore(sess, save_path)
     except Exception:
         pass
 
 
     # Merge all the summaries and write them out to /tmp/mnist_logs (by default)
-    train_writer = tf.train.SummaryWriter(SUMMARY_DIR, sess.graph)
+    train_writer = tf.summary.FileWriter(SUMMARY_DIR, sess.graph)
 
     for epoch in range(epochs):
 

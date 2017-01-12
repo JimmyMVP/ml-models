@@ -1,17 +1,19 @@
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 import tensorflow.contrib.layers as clayers
+import numpy as np
 
 # TODO Implement weight sharing
 # TODO Weight Summaries
 # TODO Learning rate decay
 # TODO Regularization loss to make matrix close to orthogonal
+# TODO Matrix orthogonality loss, because matrix explodes when the orthogonality is not kept
 
-
-def batch_norm_fully_connected(input, outputs, scope=None):
-    net = slim.fully_connected(input, outputs, scope=scope)
+def batch_norm_fully_connected(input, outputs, scope=None, weights_initializer=None):
+    net = slim.fully_connected(input, outputs, scope=scope, weights_initializer=weights_initializer)
     return slim.batch_norm(net, decay=0.5)
-
+def identity_initializer(shape):
+    return tf.constant_initializer(np.reshape(np.identity(shape[0], dtype=np.float32), shape[0]**2))
 
 class TransformNet:
 
@@ -19,8 +21,8 @@ class TransformNet:
     def __init__(self, input, shape=(3,3), cloud_size=1024, batch_size=4):
 
 
-        with slim.arg_scope([slim.fully_connected], weights_initializer=clayers.xavier_initializer(), \
-                            weights_regularizer=slim.l2_regularizer(0.0005)):
+        with slim.arg_scope([slim.fully_connected], weights_initializer=slim.init_ops.truncated_normal_initializer(), \
+                            weights_regularizer=slim.l2_regularizer(0.0005), scope="transformation"):
             net = slim.repeat(input, 2, slim.fully_connected, 64)
 
             net = batch_norm_fully_connected(input, 64)
@@ -30,8 +32,8 @@ class TransformNet:
 
             net = batch_norm_fully_connected(net, 512)
             net = batch_norm_fully_connected(net, 256)
-            net = batch_norm_fully_connected(net, shape[0]*shape[1])
-
+            net = batch_norm_fully_connected(net, shape[0]*shape[1],
+                                             weights_initializer=identity_initializer(shape))
 
             if(len(input.get_shape()) > 2):
 
@@ -40,14 +42,27 @@ class TransformNet:
                 unstacked_input = tf.unstack(input, axis=0)
 
                 results = []
+                orth_losses = []
                 for transformation_matrix, input in zip(unstacked_net, unstacked_input):
-                    results.append(tf.matmul(input,transformation_matrix))
+                    transformed_input = tf.matmul(input,transformation_matrix)
+                    results.append(transformed_input)
+
+                    # Orthogonality loss
+                    orth_loss = tf.reduce_sum(tf.matmul(transformation_matrix, transformation_matrix, transpose_b=True)-tf.constant(np.identity(shape[0], dtype=np.float32)))
+                    orth_losses.append(orth_loss)
 
 
+
+                #Calculate batch orthogonality loss
+                orth_loss = tf.stack(orth_losses, axis=0)
+                orth_loss = tf.reduce_mean(orth_loss, axis=0)
+
+                slim.losses.add_loss(orth_loss)
 
                 # 4 x 1024 x 3 -> 4096 x 3
                 # 4096 x 12
                 self.transformation = tf.stack(results, axis=0)
+                tf.summary.histogram("transformation", self.transformation)
             else:
                 self.transformation = tf.matmul(input, net)
                 self.transformation = tf.reshape(self.transformation, shape=(batch_size, cloud_size, shape[0]))
@@ -88,8 +103,13 @@ class PointNet:
             net = tf.reduce_max(net, axis=1)
 
             net = batch_norm_fully_connected(net, 512)
+            tf.summary.histogram("output-2", net)
             net = batch_norm_fully_connected(net, 256)
+            tf.summary.histogram("output-1", net)
+
             net = slim.fully_connected(net, self.numclasses)
+            # Output summary
+            tf.summary.histogram("output", net)
 
             self.labels = tf.placeholder(tf.int32, shape=(self.batch_size), name="labels")
 
