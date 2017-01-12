@@ -63,8 +63,6 @@ def load_data(save=False):
 def load_files(objects=["guitar", "piano"]):
 
     for obj in os.listdir(DATAROOT):
-        if not obj in objects:
-            continue
         train = DATAROOT+obj +"/train/"
         test = DATAROOT+obj +"/test/"
         for f in os.listdir(train):
@@ -99,12 +97,12 @@ def get_batch(batch_size, current):
 gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
 
 epochs = 600
-batch_size = 32
+batch_size = 64
 learning_rate = 0.001
 learning_rate_decay = 0.5
 
 
-network = PointNet(n=1024, numclasses=2, batch_size=batch_size)
+network = PointNet(n=1024, numclasses=40, batch_size=batch_size)
 optimise = network.train()
 
 train_saver = tf.train.Saver()

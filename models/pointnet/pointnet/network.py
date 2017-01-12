@@ -4,16 +4,13 @@ import tensorflow.contrib.layers as clayers
 import numpy as np
 
 # TODO Implement weight sharing
-# TODO Weight Summaries
-# TODO Learning rate decay
-# TODO Regularization loss to make matrix close to orthogonal
-# TODO Matrix orthogonality loss, because matrix explodes when the orthogonality is not kept
+# TODO Transformation matrix weight regularization
 
 def batch_norm_fully_connected(input, outputs, scope=None, weights_initializer=None):
     net = slim.fully_connected(input, outputs, scope=scope, weights_initializer=weights_initializer)
     return slim.batch_norm(net, decay=0.5)
 def identity_initializer(shape):
-    return tf.constant_initializer(np.reshape(np.identity(shape[0], dtype=np.float32), shape[0]**2))
+    return tf.constant_initializer(np.reshape(np.identity(shape[0], dtype=np.float64), shape[0]**2))
 
 class TransformNet:
 
@@ -43,15 +40,17 @@ class TransformNet:
 
                 results = []
                 orth_losses = []
+
                 for transformation_matrix, input in zip(unstacked_net, unstacked_input):
                     transformed_input = tf.matmul(input,transformation_matrix)
                     results.append(transformed_input)
 
                     # Orthogonality loss
-                    orth_loss = tf.reduce_sum(tf.matmul(transformation_matrix, transformation_matrix, transpose_b=True)-tf.constant(np.identity(shape[0], dtype=np.float32)))
+                    orth_loss = tf.reduce_sum(tf.matmul(transformation_matrix, transformation_matrix, transpose_b=True)-tf.constant(np.identity(shape[0], dtype=np.float64)))
                     orth_losses.append(orth_loss)
 
-
+                #L2 Regularization for transformation matrixes
+                slim.losses.add_loss(tf.reduce_sum(tf.pow(tf.reduce_mean(net, axis=0), 2)))
 
                 #Calculate batch orthogonality loss
                 orth_loss = tf.stack(orth_losses, axis=0)
@@ -84,7 +83,7 @@ class PointNet:
 
     def createComputationGraph(self):
 
-        self.inputs = tf.placeholder(tf.float32, shape=(self.batch_size, self.n, 3), name="inputs")
+        self.inputs = tf.placeholder(tf.float64, shape=(self.batch_size, self.n, 3), name="inputs")
 
         with slim.arg_scope([slim.fully_connected], weights_initializer=clayers.xavier_initializer(), \
                             weights_regularizer=slim.l2_regularizer(0.0005)):
@@ -148,6 +147,10 @@ class PointNet:
         optimizer = tf.train.AdamOptimizer(self.learning_rate)
 
         optimize = slim.learning.create_train_op(total_loss=slim.losses.get_total_loss(add_regularization_losses=True), optimizer=optimizer)
+
+        #gradients = tf.gradients(self.loss, tf.trainable_variables())
+        #tf.summary.histogram("gradients", gradients)
+
 
         return optimize
 
