@@ -63,6 +63,8 @@ def load_data(save=False):
 def load_files(objects=["guitar", "piano"]):
 
     for obj in os.listdir(DATAROOT):
+        if not obj in objects:
+            continue
         train = DATAROOT+obj +"/train/"
         test = DATAROOT+obj +"/test/"
         for f in os.listdir(train):
@@ -71,28 +73,42 @@ def load_files(objects=["guitar", "piano"]):
             train_files.append(test + f)
 
 
-load_files()
+load_files(objects=["guitar", "piano"])
 
 train_files = np.asarray(train_files)
 test_files = np.asarray(test_files)
 label_mapping = {}
+
+loaded_data = []
+loaded_data_labels = []
+load_size = 1024
+
 
 
 def get_batch(batch_size, current):
 
     data = []
     labels = []
-    for i in range(batch_size):
-        object = train_files[current+i].split("/")[-3]
-        cloud = read_off(train_files[current+i])
-        indices = np.random.choice(np.arange(cloud.shape[0]), size=1024)
 
-        data.append(cloud[indices])
-        if not object in label_mapping:
-            label_mapping[object] = len(label_mapping)
-        labels.append(label_mapping[object])
+    if current + 64 > load_size:
+        loaded_data =[]
+        loaded_data_labels = []
 
-    return np.array(data)/1000, np.array(labels)
+    if len(loaded_data) == 0:
+        for i in range(load_size):
+            object = train_files[current + i].split("/")[-3]
+            cloud = read_off(train_files[current + i])
+            # Choose points from cloud with uniform distribution
+            indices = np.random.choice(np.arange(cloud.shape[0]), size=1024)
+            loaded_data.append(cloud[indices])
+            if not object in label_mapping:
+                label_mapping[object] = len(label_mapping)
+
+            loaded_data_labels.append(label_mapping[object])
+
+    slice = slice(current%load_size, current%load_size+batch_size)
+    #For every number in batch size read a file
+    return np.array(loaded_data[slice])/1000, np.array(loaded_data_labels[slice])
 
 gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
 
