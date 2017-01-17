@@ -84,31 +84,43 @@ loaded_data_labels = []
 load_size = 1024
 
 
+def load_data(load_size, load):
 
-def get_batch(batch_size, current):
+
+    loaded_data = []
+    loaded_data_labels = []
+
+    for i in range(load_size):
+        object = train_files[load + i].split("/")[-3]
+        cloud = read_off(train_files[load + i])
+        # Choose points from cloud with uniform distribution
+        indices = np.random.choice(np.arange(cloud.shape[0]), size=1024)
+        loaded_data.append(cloud[indices])
+        if not object in label_mapping:
+            label_mapping[object] = len(label_mapping)
+
+        loaded_data_labels.append(label_mapping[object])
+    object = train_files[load + i].split("/")[-3]
+    cloud = read_off(train_files[load + i])
+    # Choose points from cloud with uniform distribution
+    indices = np.random.choice(np.arange(cloud.shape[0]), size=1024)
+    loaded_data.append(cloud[indices])
+    if not object in label_mapping:
+        label_mapping[object] = len(label_mapping)
+
+    loaded_data_labels.append(label_mapping[object])
+
+    return loaded_data, loaded_data_labels
+
+
+def get_batch(batch_size, current, loaded_data, loaded_data_labels):
 
     data = []
     labels = []
 
-    if current + 64 > load_size:
-        loaded_data =[]
-        loaded_data_labels = []
-
-    if len(loaded_data) == 0:
-        for i in range(load_size):
-            object = train_files[current + i].split("/")[-3]
-            cloud = read_off(train_files[current + i])
-            # Choose points from cloud with uniform distribution
-            indices = np.random.choice(np.arange(cloud.shape[0]), size=1024)
-            loaded_data.append(cloud[indices])
-            if not object in label_mapping:
-                label_mapping[object] = len(label_mapping)
-
-            loaded_data_labels.append(label_mapping[object])
-
-    slice = slice(current%load_size, current%load_size+batch_size)
+    sl = slice(current%load_size, current%load_size+batch_size)
     #For every number in batch size read a file
-    return np.array(loaded_data[slice])/1000, np.array(loaded_data_labels[slice])
+    return np.array(loaded_data[sl])/1000, np.array(loaded_data_labels[sl])
 
 gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
 
@@ -118,7 +130,7 @@ learning_rate = 0.001
 learning_rate_decay = 0.5
 
 
-network = PointNet(n=1024, numclasses=40, batch_size=batch_size)
+network = PointNet(n=1024, numclasses=len(label_mapping), batch_size=batch_size)
 optimise = network.train()
 
 train_saver = tf.train.Saver()
@@ -146,9 +158,16 @@ with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
             learning_rate *= learning_rate_decay
 
         print("Training epoch %d." %(epoch))
+        load = 0
         for batch in range(train_files.size // batch_size):
 
-            data, labels = get_batch(batch_size, batch)
+            if(batch*batch_size > load*load_size):
+                load_size = min(train_files.size - batch*batch_size, load_size)
+                loaded_data, loaded_data_labels = load_data(load_size, load)
+                load=+1
+
+
+            data, labels = get_batch(batch_size, batch, loaded_data, loaded_data_labels)
 
             feed_dict = {
                 network.inputs: data,
