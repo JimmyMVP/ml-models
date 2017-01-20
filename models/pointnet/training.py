@@ -9,6 +9,11 @@ import pdb
 
 from sklearn import preprocessing
 
+import argparse
+import sys
+
+
+
 DATAROOT = "/data/vlasteli/ModelNet40/"
 DATASET = ""
 LOGDIR = "/data/vlasteli/pointnet_summary/"
@@ -98,74 +103,92 @@ def get_batch(batch_size, current, cloud_size=1024):
 
     return preprocessing.scale(np.array(data).reshape(-1)).reshape(batch_size, cloud_size, -1), np.array(labels)
 
-gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
 
-epochs = 600
-batch_size = 64
-learning_rate = 0.001
-learning_rate_decay = 0.5
+"""
+    Training main function.
+"""
 
+if __name__ == '__main__':
 
-network = PointNet(n=1024, numclasses=len(objects), batch_size=batch_size)
-optimise = network.train()
+    #Remove file name from args
+    sys.argv.pop(0)
 
-train_saver = tf.train.Saver()
+    #Arguement parsing
+    parser = argparse.ArgumentParser(description="Parse parameters for training of the PointNet model.")
 
-save_path=SUMMARY_DIR + "/checkpoint.ckp"
+    parser.add_argument("--learning-rate", metavar="l", type=float, help="learning rate for optimizer",
+                        default=0.001)
+    parser.add_argument("--epochs", metavar="e", type=int, help="number of epochs",
+                        default=600)
+    parser.add_argument("--batch-size", metavar="bs", type=int, help="size of training batch",
+                        default=64)
+    parser.add_argument("--learning-rate-decay", metavar="ld", type=float, help="learning rate decay for optimizer",
+                        default=0.5)
+    parser.add_argument("--learning-rate-decay-freq", metavar="ldf", type=int, help="how frequently (in epochs) should the decay apply",
+                        default=20)
+    parser.add_argument("--save", metavar="ldf", type=int,
+                        help="how frequently (in epochs) should the decay apply",
+                        default=20)
 
-with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
-    sess.run(tf.global_variables_initializer())
-    sess.run(tf.local_variables_initializer())
-
-    try:
-        pass
-        #train_saver.restore(sess, save_path)
-    except Exception:
-        pass
-
-
-    # Merge all the summaries and write them out to /tmp/mnist_logs (by default)
-    train_writer = tf.summary.FileWriter(SUMMARY_DIR, sess.graph)
-
-    for epoch in range(epochs):
-
-        np.random.shuffle(train_files)
-        if(epoch%20 == 0):
-            learning_rate *= learning_rate_decay
-
-        print("Training epoch %d." %(epoch))
-        for batch in range(train_files.size // batch_size):
-
-            data, labels = get_batch(batch_size, batch)
-
-            feed_dict = {
-                network.inputs: data,
-                network.labels: labels,
-                network.learning_rate: learning_rate
-            }
-
-            sess.run(list(network.updates.values()), feed_dict=feed_dict)
-            #pdb.set_trace()
+    args = parser.parse_args(sys.argv)
 
 
+    network = PointNet(n=1024, numclasses=len(objects), batch_size=args.batch_size)
+    optimise = network.train()
 
-            results = sess.run([network.loss, network.summary, optimise] + list(network.metrics_op_map.values()), feed_dict=feed_dict)
-            loss = results[0]
-            summary = results[1]
+    train_saver = tf.train.Saver()
 
-            if(batch % 10 == 0):
-                train_writer.add_summary(summary)
-            metric_values = results[3:]
+    save_path=SUMMARY_DIR + "/checkpoint.ckp"
 
-            print(10*"#", "Epoch: %d/%d Batch: %d/%d Loss: %f" %(epoch, epochs,batch, train_files.size // batch_size, loss), 10*"#")
-            for key, value in zip(network.metrics_op_map.keys(), metric_values):
-                print("%s: %f" % (key, value))
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        sess.run(tf.local_variables_initializer())
 
-
-        if(epoch % 10 == 0):
-            train_saver.save(save_path=save_path, sess=sess)
-
-
+        try:
+            pass
+            #train_saver.restore(sess, save_path)
+        except Exception:
+            pass
 
 
+        # Merge all the summaries and write them out to /tmp/mnist_logs (by default)
+        train_writer = tf.summary.FileWriter(SUMMARY_DIR, sess.graph)
+
+        for epoch in range(args.epochs):
+
+            np.random.shuffle(train_files)
+            if(epoch%20 == 0):
+                args.learning_rate *= args.learning_rate_decay
+
+            print("Training epoch %d." %(epoch))
+            for batch in range(train_files.size // args.batch_size):
+
+                data, labels = get_batch(args.batch_size, batch)
+
+                feed_dict = {
+                    network.inputs: data,
+                    network.labels: labels,
+                    network.learning_rate: args.learning_rate
+                }
+
+                sess.run(list(network.updates.values()), feed_dict=feed_dict)
+                #pdb.set_trace()
+
+
+
+                results = sess.run([network.loss, network.summary, optimise] + list(network.metrics_op_map.values()), feed_dict=feed_dict)
+                loss = results[0]
+                summary = results[1]
+
+                if(batch % 10 == 0):
+                    train_writer.add_summary(summary)
+                metric_values = results[3:]
+
+                print(10*"#", "Epoch: %d/%d Batch: %d/%d Loss: %f" %(epoch, args.epochs,batch, train_files.size // args.batch_size, loss), 10*"#")
+                for key, value in zip(network.metrics_op_map.keys(), metric_values):
+                    print("%s: %f" % (key, value))
+
+
+            if(epoch % 10 == 0):
+                train_saver.save(save_path=save_path, sess=sess)
 
