@@ -7,8 +7,7 @@ import tensorflow as tf
 from pointnet.network import PointNet
 import pdb
 
-
-# TODO Data normalization
+from sklearn import preprocessing
 
 DATAROOT = "/data/vlasteli/ModelNet40/"
 DATASET = ""
@@ -60,9 +59,12 @@ def load_data(save=False):
         print("Loaded object")
 
 
-def load_files(objects=["guitar", "piano"]):
+objects = ["guitar", "piano"]
+def load_files(objects=objects):
 
     for obj in os.listdir(DATAROOT):
+        if not obj in objects:
+            continue
         train = DATAROOT+obj +"/train/"
         test = DATAROOT+obj +"/test/"
         for f in os.listdir(train):
@@ -78,21 +80,23 @@ test_files = np.asarray(test_files)
 label_mapping = {}
 
 
-def get_batch(batch_size, current):
+def get_batch(batch_size, current, cloud_size=1024):
 
     data = []
     labels = []
     for i in range(batch_size):
         object = train_files[current+i].split("/")[-3]
         cloud = read_off(train_files[current+i])
-        indices = np.random.choice(np.arange(cloud.shape[0]), size=1024)
+        indices = np.random.choice(np.arange(cloud.shape[0]), size=cloud_size)
 
         data.append(cloud[indices])
         if not object in label_mapping:
             label_mapping[object] = len(label_mapping)
         labels.append(label_mapping[object])
 
-    return np.array(data)/1000, np.array(labels)
+    #Scale the so that it has zero mean and unit variance
+
+    return preprocessing.scale(np.array(data).reshape(-1)).reshape(batch_size, cloud_size, -1), np.array(labels)
 
 gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
 
@@ -102,7 +106,7 @@ learning_rate = 0.001
 learning_rate_decay = 0.5
 
 
-network = PointNet(n=1024, numclasses=40, batch_size=batch_size)
+network = PointNet(n=1024, numclasses=len(objects), batch_size=batch_size)
 optimise = network.train()
 
 train_saver = tf.train.Saver()
