@@ -5,6 +5,7 @@ import numpy as np
 
 # TODO Implement weight sharing
 # TODO Transformation matrix weight regularization
+# TODO Batch size doesn't influence network topology
 
 def batch_norm_fully_connected(input, outputs, scope=None, weights_initializer=None):
     net = slim.fully_connected(input, outputs, scope=scope, weights_initializer=weights_initializer)
@@ -135,7 +136,7 @@ class PointNet:
 
 
         #Define summary
-        self.summary = tf.merge_all_summaries()
+        self.summary = tf.summary.merge_all()
 
 
     def train(self):
