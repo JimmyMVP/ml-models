@@ -78,10 +78,6 @@ def load_files(objects=objects):
             train_files.append(test + f)
 
 
-load_files()
-
-train_files = np.asarray(train_files)
-test_files = np.asarray(test_files)
 label_mapping = {}
 
 
@@ -110,6 +106,7 @@ def get_batch(batch_size, current, cloud_size=1024):
 
 if __name__ == '__main__':
 
+
     #Remove file name from args
     sys.argv.pop(0)
 
@@ -132,9 +129,19 @@ if __name__ == '__main__':
 
     args = parser.parse_args(sys.argv)
 
+    print("Loading training and test files...")
+    load_files()
+    train_files = np.asarray(train_files)
+    test_files = np.asarray(test_files)
+
+    device_name = "/gpu:0"
+
+
+    print("Creating network...")
 
     network = PointNet(n=1024, numclasses=len(objects), batch_size=args.batch_size)
     optimise = network.train()
+
 
     train_saver = tf.train.Saver()
 
@@ -176,15 +183,21 @@ if __name__ == '__main__':
 
 
 
-                results = sess.run([network.loss, network.summary, optimise] + list(network.metrics_op_map.values()), feed_dict=feed_dict)
+                results = sess.run([network.loss, network.summary, network.reg_loss,
+                                    network.orth_loss, network.cross_entropy_loss,optimise] + list(network.metrics_op_map.values()), feed_dict=feed_dict)
                 loss = results[0]
                 summary = results[1]
+                reg_loss = results[2] /loss
+                orth_loss = results[3] /loss
+                cross_entropy = results[4] /loss
 
                 if(batch % 10 == 0):
                     train_writer.add_summary(summary)
-                metric_values = results[3:]
-
+                metric_values = results[6:]
+                #pdb.set_trace()
                 print(10*"#", "Epoch: %d/%d Batch: %d/%d Loss: %f" %(epoch, args.epochs,batch, train_files.size // args.batch_size, loss), 10*"#")
+
+                print("reg_loss=%f cross_entropy=%f orth_loss=%f percent of loss" %(reg_loss, orth_loss, cross_entropy), 10*"#")
                 for key, value in zip(network.metrics_op_map.keys(), metric_values):
                     print("%s: %f" % (key, value))
 
